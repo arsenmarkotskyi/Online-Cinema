@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.pyc
+*.pkl
+*.log
+*.sqlite3
+*.db
+*.env
+.env.*
+
+# Virtual environment
+venv/
+.venv/
+ENV/
+env/
+*.egg-info/
+
+# PyCharm
+.idea/
+*.iml
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# mypy / coverage / testing
+.mypy_cache/
+.coverage
+htmlcov/
+.tox/
+.pytest_cache/
+.cache/
+coverage.xml
+
+# VSCode (if you use it alongside)
+.vscode/
+
+# FastAPI static/media (if applicable)
+staticfiles/
+media/
+
+# Docker
+*.pid
+docker-compose.override.yml
+
+# Local development scripts (optional)
+scripts/__pycache__/
