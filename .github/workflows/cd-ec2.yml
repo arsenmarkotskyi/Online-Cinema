@@ -1,0 +1,74 @@
+# Deploy to AWS EC2 after CI passes on main, or manually (workflow_dispatch).
+#
+# Repository variable (Settings → Secrets and variables → Actions → Variables):
+#   DEPLOY_ENABLED = true   (if unset or not "true", deploy jobs are skipped)
+#
+# Repository secrets (Settings → Secrets and variables → Actions → Secrets):
+#   EC2_HOST          — public hostname or IP
+#   EC2_USER          — SSH login (e.g. ubuntu, ec2-user)
+#   EC2_SSH_KEY       — private key (PEM), full multiline key
+#   EC2_DEPLOY_PATH   — absolute path to the app clone on the server (e.g. /home/ubuntu/online-cinema)
+#
+# Optional secret:
+#   EC2_GIT_REF       — branch to reset to (default: main)
+#
+# Server prerequisites:
+#   - git remote "origin" points to this repo (read: deploy key or HTTPS token)
+#   - Docker Engine + Docker Compose plugin installed
+#   - Same docker-compose.yml (or adjust the script below for prod overrides)
+
+name: CD EC2
+
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types:
+      - completed
+    branches:
+      - main
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-ec2-production
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Deploy to EC2
+    runs-on: ubuntu-latest
+    if: >-
+      vars.DEPLOY_ENABLED == 'true'
+      && (
+        (github.event_name == 'workflow_dispatch' && github.ref == 'refs/heads/main')
+        || (
+          github.event_name == 'workflow_run'
+          && github.event.workflow_run.conclusion == 'success'
+          && github.event.workflow_run.head_branch == 'main'
+          && github.event.workflow_run.event == 'push'
+        )
+      )
+
+    steps:
+      - name: Deploy over SSH
+        uses: appleboy/ssh-action@v1.2.2
+        with:
+          host: ${{ secrets.EC2_HOST }}
+          username: ${{ secrets.EC2_USER }}
+          key: ${{ secrets.EC2_SSH_KEY }}
+          port: 22
+          script_stop: true
+          command_timeout: 20m
+          script: |
+            set -euo pipefail
+            DEPLOY_PATH='${{ secrets.EC2_DEPLOY_PATH }}'
+            if [ -z "$DEPLOY_PATH" ] || [ ! -d "$DEPLOY_PATH" ]; then
+              echo "EC2_DEPLOY_PATH missing or not a directory on the server."
+              exit 1
+            fi
+            cd "$DEPLOY_PATH"
+            GIT_REF='${{ secrets.EC2_GIT_REF }}'
+            if [ -z "$GIT_REF" ]; then GIT_REF=main; fi
+            git fetch origin "$GIT_REF"
+            git reset --hard "origin/$GIT_REF"
+            docker compose build --pull
+            docker compose up -d --remove-orphans

@@ -1,0 +1,80 @@
+# Full local stack: API + Celery worker + beat + Redis + MinIO + Mailpit.
+# Usage: docker compose up --build -d
+# API: http://127.0.0.1:8000  |  Mailpit UI: http://127.0.0.1:8025
+# MinIO console: http://127.0.0.1:9001 (login: minioadmin / minioadminsecret)
+#
+# SQLite is shared via volume; concurrent API + Celery can occasionally lock — OK for dev/demo.
+
+services:
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: minioadmin
+      MINIO_ROOT_PASSWORD: minioadminsecret
+    ports:
+      - "9000:9000"
+      - "9001:9001"
+    volumes:
+      - minio-data:/data
+
+  mailpit:
+    image: axllent/mailpit:latest
+    ports:
+      - "8025:8025"
+      - "1025:1025"
+
+  api:
+    build: .
+    ports:
+      - "8000:8000"
+    environment:
+      PATH_TO_DB: /data/movies.db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PUBLIC_BASE_URL: http://127.0.0.1:8000
+      MINIO_ENDPOINT: http://minio:9000
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadminsecret
+      MINIO_BUCKET: online-cinema
+    volumes:
+      - app-db:/data
+    depends_on:
+      - redis
+      - minio
+
+  worker:
+    build: .
+    command: >
+      celery -A src.worker.celery_app worker --loglevel=info
+    environment:
+      PATH_TO_DB: /data/movies.db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+      PUBLIC_BASE_URL: http://127.0.0.1:8000
+    volumes:
+      - app-db:/data
+    depends_on:
+      - redis
+
+  beat:
+    build: .
+    command: >
+      celery -A src.worker.celery_app beat --loglevel=info
+    environment:
+      PATH_TO_DB: /data/movies.db
+      CELERY_BROKER_URL: redis://redis:6379/0
+      CELERY_RESULT_BACKEND: redis://redis:6379/1
+    volumes:
+      - app-db:/data
+    depends_on:
+      - redis
+
+volumes:
+  app-db:
+  minio-data:

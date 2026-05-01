@@ -1,0 +1,17 @@
+# Compatible with Black (88 cols). FastAPI uses Depends() in defaults — B008 is intentional.
+# Optional local plugins (flake8-quotes, flake8-variables-names) conflict with Black / Pydantic:
+#   Q000  prefers single quotes — Black uses double quotes
+#   VNE001/VNE003  single-letter / "shadowing" — common in routes, Field(alias="id"), etc.
+#   E231/E702  false positives on ":" / ";" inside f-strings and string literals (URLs, copy)
+[flake8]
+max-line-length = 88
+extend-ignore =
+    E203,
+    W503,
+    B008,
+    Q000,
+    VNE001,
+    VNE003,
+    E231,
+    E702,
+exclude = .venv,.git,__pycache__

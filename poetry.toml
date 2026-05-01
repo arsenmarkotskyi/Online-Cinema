@@ -1,0 +1,4 @@
+[virtualenvs]
+in-project = true
+# Avoid reusing a broken active .venv; macOS often has no `python` on PATH (only python3).
+prefer-active-python = false

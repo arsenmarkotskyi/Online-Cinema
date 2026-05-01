@@ -10,6 +10,11 @@ __pycache__/
 *.db
 *.env
 .env.*
+!.env.example
+.tasks/
+
+# Poetry helper: symlink python -> python3 (see scripts/poetry.sh)
+.poetry-bin/
 
 # Virtual environment
 venv/
@@ -46,5 +51,11 @@ media/
 *.pid
 docker-compose.override.yml
 
+# Celery Beat local schedule (project root or .celery/)
+celerybeat-schedule
+celerybeat-schedule.*
+.celery/
+
 # Local development scripts (optional)
 scripts/__pycache__/
+*.db-journal
