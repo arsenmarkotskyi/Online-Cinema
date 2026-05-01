@@ -16,6 +16,7 @@ from src.database.models import (
     Base,
     PasswordResetToken,
     RefreshToken,
+    RevokedAccessToken,
     User,
     UserGroup,
     UserGroupEnum,
@@ -88,6 +89,12 @@ def _build_token_db(db_path: str) -> None:
                 expires_at=future,
             )
         )
+        session.add(
+            RevokedAccessToken(jti="jti_expired", expires_at=past),
+        )
+        session.add(
+            RevokedAccessToken(jti="jti_valid", expires_at=future),
+        )
         session.commit()
     engine.dispose()
 
@@ -100,7 +107,7 @@ def test_purge_expired_tokens_removes_only_expired(tmp_path) -> None:
     with patch("src.worker.tasks.get_settings", return_value=settings):
         removed = purge_expired_tokens()
 
-    assert removed == 3
+    assert removed == 4
 
     engine = create_engine(f"sqlite:///{db_path}", future=True)
     Session = sessionmaker(bind=engine, future=True)
@@ -108,11 +115,13 @@ def test_purge_expired_tokens_removes_only_expired(tmp_path) -> None:
         n_act = session.scalar(select(func.count()).select_from(ActivationToken))
         n_pwd = session.scalar(select(func.count()).select_from(PasswordResetToken))
         n_ref = session.scalar(select(func.count()).select_from(RefreshToken))
+        n_rev = session.scalar(select(func.count()).select_from(RevokedAccessToken))
     engine.dispose()
 
     assert n_act == 1
     assert n_pwd == 1
     assert n_ref == 1
+    assert n_rev == 1
 
 
 def test_purge_expired_tokens_no_tables_returns_zero(tmp_path) -> None:

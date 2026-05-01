@@ -64,6 +64,11 @@ async def add_to_cart(
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND, detail="Movie not found"
         )
+    if not movie.available_for_purchase:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="This title is not available for purchase (withdrawn or region-locked).",
+        )
 
     owned = await purchased_movie_ids(db, current_user.id)
     if movie_id in owned:

@@ -14,6 +14,7 @@ from sqlalchemy import (
     Text,
     UniqueConstraint,
     func,
+    true,
 )
 from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column, relationship
 
@@ -85,6 +86,10 @@ class Movie(Base):
     gross: Mapped[float] = mapped_column(nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     price: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
+    # False = not for sale (e.g. region-locked / withdrawn); excluded from cart & orders.
+    available_for_purchase: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=True, server_default=true()
+    )
 
     certification_id: Mapped[int] = mapped_column(
         ForeignKey("certifications.id"), nullable=False
@@ -280,6 +285,17 @@ class RefreshToken(Base):
     )
 
     user = relationship("User", back_populates="refresh_tokens")
+
+
+class RevokedAccessToken(Base):
+    """JWT ``jti`` values invalidated on logout (``.tasks``: access token unusable)."""
+
+    __tablename__ = "revoked_access_tokens"
+
+    jti: Mapped[str] = mapped_column(String(64), primary_key=True)
+    expires_at: Mapped[DateTime] = mapped_column(
+        DateTime(timezone=True), nullable=False
+    )
 
 
 class MovieLike(Base):

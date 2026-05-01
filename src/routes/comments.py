@@ -15,14 +15,14 @@ router = APIRouter(prefix="/comments", tags=["comments"])
 async def create_comment(
     comment_in: CommentCreate,
     db: AsyncSession = Depends(get_db),
-    current_user: User = Depends(get_current_user),  # Реалізуй auth
+    current_user: User = Depends(get_current_user),
 ):
-    # Перевірка, чи існує фільм
+    # Ensure the movie exists
     movie = await db.get(Movie, comment_in.movie_id)
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # Якщо це відповідь на інший коментар — перевіримо
+    # If replying, validate parent comment belongs to the same movie
     if comment_in.parent_id:
         parent_comment = await db.get(MovieComment, comment_in.parent_id)
         if not parent_comment:

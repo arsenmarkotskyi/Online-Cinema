@@ -22,6 +22,7 @@ def test_get_routes_require_auth(client: TestClient) -> None:
         "/orders/",
         "/profile/",
         "/payments/",
+        "/payments/methods",
         "/favorites/",
         "/notifications/",
     ):

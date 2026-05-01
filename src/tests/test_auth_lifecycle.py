@@ -62,9 +62,20 @@ def test_register_activate_login_flow(client: TestClient, monkeypatch) -> None:
     body = login.json()
     assert "access_token" in body and "refresh_token" in body
 
+    access = body["access_token"]
     refresh = body["refresh_token"]
-    out = client.post("/auth/logout", json={"refresh_token": refresh})
+    out = client.post(
+        "/auth/logout",
+        json={"refresh_token": refresh},
+        headers={"Authorization": f"Bearer {access}"},
+    )
     assert out.status_code == 200
+
+    protected = client.get(
+        "/cart/",
+        headers={"Authorization": f"Bearer {access}"},
+    )
+    assert protected.status_code == 401
 
     bad_refresh = client.post("/auth/refresh", json={"refresh_token": refresh})
     assert bad_refresh.status_code == 401

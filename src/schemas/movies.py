@@ -14,6 +14,7 @@ class MovieBase(BaseModel):
     description: str
     price: Optional[float] = None
     certification_id: int
+    available_for_purchase: bool = True
 
 
 class MovieCreate(MovieBase):
@@ -55,6 +56,7 @@ class MovieShortOut(BaseModel):
     id: int
     name: str
     year: Optional[int] = None
+    available_for_purchase: bool = True
 
     class Config:
         from_attributes = True
@@ -62,7 +64,7 @@ class MovieShortOut(BaseModel):
 
 class MovieDetailOut(MovieBase):
     id: int
-    uuid: str  # Якщо потрібно
+    uuid: str  # Always returned on detail reads
     genres: List[GenreOut] = []
     directors: List[DirectorOut] = []
     stars: List[StarOut] = []

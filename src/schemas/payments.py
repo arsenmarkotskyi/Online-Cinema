@@ -27,3 +27,19 @@ class PaymentOut(BaseModel):
 class CheckoutSessionResponse(BaseModel):
     checkout_url: str
     session_id: str
+
+
+class PaymentMethodsOut(BaseModel):
+    """Which payment integrations are enabled for the deployment."""
+
+    stripe_checkout_enabled: bool
+    currency: str
+
+
+class CheckoutSessionStatusOut(BaseModel):
+    """Stripe Checkout session state for post-redirect UX (``.tasks``)."""
+
+    session_id: str
+    payment_status: str
+    status: str
+    recommendations: list[str] = Field(default_factory=list)

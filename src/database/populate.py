@@ -6,24 +6,24 @@ from src.database.session import AsyncSQLiteSessionLocal
 
 async def populate():
     async with AsyncSQLiteSessionLocal() as session:
-        # Сертифікації
+        # Certifications
         cert_pg13 = Certification(name="PG-13")
         cert_r = Certification(name="R")
 
-        # Жанри
+        # Genres
         genre_action = Genre(name="Action")
         genre_drama = Genre(name="Drama")
         genre_comedy = Genre(name="Comedy")
 
-        # Режисери
+        # Directors
         director_nolan = Director(name="Christopher Nolan")
         director_spielberg = Director(name="Steven Spielberg")
 
-        # Актори
+        # Stars (cast)
         star_dicaprio = Star(name="Leonardo DiCaprio")
         star_hanks = Star(name="Tom Hanks")
 
-        # Фільми
+        # Movies
         movie_1 = Movie(
             name="Inception",
             year=2010,

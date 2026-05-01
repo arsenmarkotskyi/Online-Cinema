@@ -85,6 +85,13 @@ async def create_order_from_cart(
             )
             await db.delete(ci)
             continue
+        if not ci.movie.available_for_purchase:
+            messages.append(
+                f"Movie id {mid} is not available for purchase "
+                "(withdrawn or region-locked) and was excluded from this order."
+            )
+            await db.delete(ci)
+            continue
         if mid in purchased:
             excluded_purchased.append(mid)
             messages.append(

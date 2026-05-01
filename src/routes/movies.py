@@ -8,7 +8,16 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from src.auth.dependencies import require_moderator
-from src.database.models import CartItem, Director, Genre, Movie, OrderItem, Star, User
+from src.database.models import (
+    CartItem,
+    Director,
+    Genre,
+    Movie,
+    MovieLike,
+    OrderItem,
+    Star,
+    User,
+)
 from src.database.notify_moderators import notify_moderators
 from src.database.session import get_db
 from src.schemas.movies import MovieCreate, MovieDetailOut, MovieRead, MovieShortOut
@@ -57,7 +66,19 @@ async def list_movies(
     if sort_by:
         is_desc = sort_by.startswith("-")
         field = sort_by.lstrip("-")
-        if hasattr(Movie, field):
+        if field == "popularity":
+            like_count_sq = (
+                select(func.count(MovieLike.id))
+                .where(
+                    MovieLike.movie_id == Movie.id,
+                    MovieLike.is_liked.is_(True),
+                )
+                .scalar_subquery()
+            )
+            query = query.order_by(
+                desc(like_count_sq) if is_desc else asc(like_count_sq)
+            )
+        elif hasattr(Movie, field):
             sort_field = getattr(Movie, field)
             query = query.order_by(desc(sort_field) if is_desc else asc(sort_field))
     else:
@@ -135,6 +156,7 @@ async def build_movie(movie_data: MovieCreate, db: AsyncSession) -> dict:
         "description": movie_data.description,
         "price": movie_data.price,
         "certification_id": movie_data.certification_id,
+        "available_for_purchase": movie_data.available_for_purchase,
         "genres": genres,
         "directors": directors,
         "stars": stars,
@@ -203,7 +225,7 @@ async def update_movie(
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # Перевірка унікальності (інший фільм із тими ж name/year/time)
+    # Enforce unique (name, year, time) vs other rows
     conflict_stmt = select(Movie).where(
         Movie.name == movie_data.name,
         Movie.year == movie_data.year,
@@ -216,7 +238,7 @@ async def update_movie(
             detail="Another movie with the same name, year, and time already exists.",
         )
 
-    # Оновлюємо поля фільму
+    # Apply scalar field updates
     movie_fields = await build_movie(movie_data, db)
     for key, value in movie_fields.items():
         setattr(movie, key, value)

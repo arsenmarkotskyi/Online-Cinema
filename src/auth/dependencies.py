@@ -6,7 +6,7 @@ from sqlalchemy.future import select
 from sqlalchemy.orm import selectinload
 
 from src.config.settings import get_settings
-from src.database.models import User, UserGroupEnum
+from src.database.models import RevokedAccessToken, User, UserGroupEnum
 from src.database.session import get_db
 
 settings = get_settings()
@@ -30,6 +30,13 @@ async def get_current_user(
         if sub is None:
             raise credentials_exception
         user_id = int(sub)
+        jti = payload.get("jti")
+        if jti:
+            revoked = await db.execute(
+                select(RevokedAccessToken.jti).where(RevokedAccessToken.jti == jti)
+            )
+            if revoked.scalar_one_or_none():
+                raise credentials_exception
     except (JWTError, TypeError, ValueError):
         raise credentials_exception
 

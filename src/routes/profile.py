@@ -16,7 +16,7 @@ async def get_profile(
 ):
     profile = current_user.profile
     if not profile:
-        # Повертаємо порожній профіль якщо ще не створений
+        # Lazily create an empty profile row on first access
         return ProfileOut()
     return profile
 

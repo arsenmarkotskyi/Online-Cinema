@@ -1,13 +1,13 @@
 from typing import List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import asc, desc, or_
+from sqlalchemy import asc, desc, func, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 from sqlalchemy.orm import aliased
 
 from src.auth.dependencies import get_current_user
-from src.database.models import Favorite, Movie, User
+from src.database.models import Director, Favorite, Movie, MovieLike, Star, User
 from src.database.session import get_db
 from src.schemas.movies import MovieShortOut
 
@@ -24,7 +24,7 @@ async def add_favorite(
     if not movie:
         raise HTTPException(status_code=404, detail="Movie not found")
 
-    # Перевірити чи вже є у фаворитах
+    # Skip if this movie is already in favorites
     stmt = select(Favorite).where(
         Favorite.user_id == current_user.id, Favorite.movie_id == movie_id
     )
@@ -87,15 +87,35 @@ async def list_favorites(
     if max_imdb:
         query = query.where(Movie.imdb <= max_imdb)
     if search:
-        ilike = f"%{search.lower()}%"
+        ilike_pattern = f"%{search.lower()}%"
+        query = query.join(Movie.stars, isouter=True).join(
+            Movie.directors, isouter=True
+        )
         query = query.where(
-            or_(Movie.name.ilike(ilike), Movie.description.ilike(ilike))
+            or_(
+                Movie.name.ilike(ilike_pattern),
+                Movie.description.ilike(ilike_pattern),
+                Star.name.ilike(ilike_pattern),
+                Director.name.ilike(ilike_pattern),
+            )
         )
 
     if sort_by:
         is_desc = sort_by.startswith("-")
         field = sort_by.lstrip("-")
-        if hasattr(Movie, field):
+        if field == "popularity":
+            like_count_sq = (
+                select(func.count(MovieLike.id))
+                .where(
+                    MovieLike.movie_id == Movie.id,
+                    MovieLike.is_liked.is_(True),
+                )
+                .scalar_subquery()
+            )
+            query = query.order_by(
+                desc(like_count_sq) if is_desc else asc(like_count_sq)
+            )
+        elif hasattr(Movie, field):
             sort_field = getattr(Movie, field)
             query = query.order_by(desc(sort_field) if is_desc else asc(sort_field))
 

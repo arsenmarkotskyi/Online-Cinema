@@ -21,6 +21,23 @@ AsyncSQLiteSessionLocal = async_sessionmaker(
 )
 
 
+def _sqlite_add_movie_purchase_column_if_missing(sync_conn) -> None:
+    """Lightweight migration for existing SQLite DBs (add column once)."""
+    from sqlalchemy import inspect, text
+
+    insp = inspect(sync_conn)
+    if "movies" not in insp.get_table_names():
+        return
+    cols = {c["name"] for c in insp.get_columns("movies")}
+    if "available_for_purchase" not in cols:
+        sync_conn.execute(
+            text(
+                "ALTER TABLE movies ADD COLUMN available_for_purchase "
+                "BOOLEAN NOT NULL DEFAULT 1"
+            )
+        )
+
+
 async def init_db() -> None:
     """
     Initialize the database.
@@ -30,6 +47,7 @@ async def init_db() -> None:
     """
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.run_sync(_sqlite_add_movie_purchase_column_if_missing)
 
     from src.database.seed import maybe_bootstrap_admin, seed_user_groups
 

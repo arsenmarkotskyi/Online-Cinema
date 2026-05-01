@@ -3,8 +3,12 @@ from datetime import datetime, timedelta, timezone
 from typing import cast
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from fastapi.security import OAuth2PasswordRequestForm
-from jose import jwt
+from fastapi.security import (
+    HTTPAuthorizationCredentials,
+    HTTPBearer,
+    OAuth2PasswordRequestForm,
+)
+from jose import JWTError, jwt
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.future import select
 
@@ -15,6 +19,7 @@ from src.database.models import (
     ActivationToken,
     PasswordResetToken,
     RefreshToken,
+    RevokedAccessToken,
     User,
     UserGroup,
     UserGroupEnum,
@@ -32,6 +37,7 @@ from src.schemas.auth import (
 
 router = APIRouter(prefix="/auth", tags=["auth"])
 settings = get_settings()
+_optional_bearer = HTTPBearer(auto_error=False)
 
 ACCESS_TOKEN_TTL = timedelta(minutes=30)
 REFRESH_TOKEN_TTL = timedelta(days=7)
@@ -48,8 +54,11 @@ def _expires_at_utc(expires_at: datetime) -> datetime:
 
 def _make_access_token(user_id: int) -> str:
     expire = datetime.now(timezone.utc) + ACCESS_TOKEN_TTL
+    jti = secrets.token_urlsafe(16)
     return jwt.encode(
-        {"sub": str(user_id), "exp": expire}, settings.SECRET_KEY, algorithm="HS256"
+        {"sub": str(user_id), "exp": expire, "jti": jti},
+        settings.SECRET_KEY,
+        algorithm="HS256",
     )
 
 
@@ -141,11 +150,11 @@ async def resend_activation(
     user = result.scalar_one_or_none()
 
     if not user or user.is_active:
-        # Не розкриваємо чи існує email
+        # Do not reveal whether the email is registered
         msg = "If this email exists and is not activated, " "a new link has been sent."
         return {"detail": msg}
 
-    # Видаляємо старий токен якщо є
+    # Remove previous activation token if present
     old = await db.execute(
         select(ActivationToken).where(ActivationToken.user_id == user.id)
     )
@@ -218,13 +227,42 @@ async def refresh_token(data: RefreshRequest, db: AsyncSession = Depends(get_db)
 
 
 @router.post("/logout")
-async def logout(data: RefreshRequest, db: AsyncSession = Depends(get_db)):
+async def logout(
+    data: RefreshRequest,
+    db: AsyncSession = Depends(get_db),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_optional_bearer),
+):
+    """
+    Revokes the refresh token. If ``Authorization: Bearer <access>`` is sent,
+    the access token is blacklisted until expiry (``.tasks`` logout semantics).
+    """
+    if credentials and credentials.scheme.lower() == "bearer":
+        try:
+            payload = jwt.decode(
+                credentials.credentials,
+                settings.SECRET_KEY,
+                algorithms=["HS256"],
+            )
+            jti = payload.get("jti")
+            exp_claim = payload.get("exp")
+            if jti and exp_claim is not None:
+                exp_dt = datetime.fromtimestamp(int(exp_claim), tz=timezone.utc)
+                existing = await db.execute(
+                    select(RevokedAccessToken).where(RevokedAccessToken.jti == jti)
+                )
+                if existing.scalar_one_or_none() is None:
+                    db.add(RevokedAccessToken(jti=jti, expires_at=exp_dt))
+        except JWTError:
+            pass
+
     result = await db.execute(
         select(RefreshToken).where(RefreshToken.token == data.refresh_token)
     )
     token = result.scalar_one_or_none()
     if token:
         await db.delete(token)
+        await db.commit()
+    else:
         await db.commit()
     return {"detail": "Logged out successfully"}
 
@@ -251,7 +289,7 @@ async def forgot_password(
     user = result.scalar_one_or_none()
 
     if user and user.is_active:
-        # Видаляємо старий токен якщо є
+        # Remove previous reset token if present
         old = await db.execute(
             select(PasswordResetToken).where(PasswordResetToken.user_id == user.id)
         )
