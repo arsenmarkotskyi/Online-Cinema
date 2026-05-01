@@ -54,4 +54,4 @@ jobs:
           --cov=src
           --cov-report=term-missing
           --cov-report=xml
-          --cov-fail-under=0
+          --cov-fail-under=50
