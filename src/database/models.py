@@ -86,7 +86,7 @@ class Movie(Base):
     gross: Mapped[float] = mapped_column(nullable=True)
     description: Mapped[str] = mapped_column(Text, nullable=False)
     price: Mapped[float] = mapped_column(DECIMAL(10, 2), nullable=False)
-    # False = not for sale (e.g. region-locked / withdrawn); excluded from cart & orders.
+    # Not for sale (withdrawn / region-locked); excluded from cart and orders.
     available_for_purchase: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default=true()
     )
