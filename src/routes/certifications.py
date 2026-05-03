@@ -67,9 +67,9 @@ async def delete_certification(
     if not row:
         raise HTTPException(status_code=404, detail="Certification not found")
     in_use = await db.execute(
-        select(func.count()).select_from(Movie).where(
-            Movie.certification_id == certification_id
-        )
+        select(func.count())
+        .select_from(Movie)
+        .where(Movie.certification_id == certification_id)
     )
     if (in_use.scalar_one() or 0) > 0:
         raise HTTPException(
