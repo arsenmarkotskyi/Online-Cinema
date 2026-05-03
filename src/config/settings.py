@@ -11,6 +11,23 @@ def _default_secret_key() -> str:
     return os.getenv("SECRET_KEY_ACCESS") or secrets.token_hex(32)
 
 
+# One secret per process for tests/CI when env does not pin a key (each
+# ``TestingSettings()`` would otherwise get a new ``secrets.token_hex`` and
+# JWT signing in ``auth.routes`` would not match verification in ``auth.dependencies``).
+_stable_testing_jwt_key: Optional[str] = None
+
+
+def _stable_testing_jwt_secret() -> str:
+    global _stable_testing_jwt_key
+    if _stable_testing_jwt_key is None:
+        _stable_testing_jwt_key = (
+            os.getenv("SECRET_KEY_ACCESS")
+            or os.getenv("SECRET_KEY")
+            or secrets.token_hex(32)
+        )
+    return _stable_testing_jwt_key
+
+
 class Settings(BaseSettings):
     BASE_DIR: Path = Path(__file__).parent.parent
     PATH_TO_DB: str = str(BASE_DIR / "database" / "source" / "movies.db")
@@ -70,6 +87,7 @@ class Settings(BaseSettings):
 
 class TestingSettings(Settings):
     PATH_TO_DB: str = ":memory:"
+    SECRET_KEY: str = Field(default_factory=_stable_testing_jwt_secret)
 
 
 def get_settings() -> Settings:

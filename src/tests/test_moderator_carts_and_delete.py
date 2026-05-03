@@ -79,6 +79,7 @@ async def _seed_moderator_buyer_movie_in_cart() -> dict[str, Any]:
         await session.commit()
 
         return {
+            "buyer_id": buyer.id,
             "buyer_email": buyer.email,
             "mod_email": mod.email,
             "movie_id": movie.id,
@@ -155,7 +156,11 @@ def test_admin_carts_403_as_regular_user(client: TestClient) -> None:
 def test_admin_carts_200_lists_cart_with_items(client: TestClient) -> None:
     data = asyncio.run(_seed_moderator_buyer_movie_in_cart())
     token = _login(client, data["mod_email"], data["password"])
-    r = client.get("/admin/carts", headers={"Authorization": f"Bearer {token}"})
+    # limit=50; shared in-memory DB has many carts; filter so the buyer row is returned.
+    r = client.get(
+        f"/admin/carts?user_id={data['buyer_id']}",
+        headers={"Authorization": f"Bearer {token}"},
+    )
     assert r.status_code == 200
     rows = r.json()
     assert isinstance(rows, list)
